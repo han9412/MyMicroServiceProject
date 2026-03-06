@@ -1,0 +1,100 @@
+@page "/products/edit/{Id:int}"
+@inject MyClient.Services.ProductApiService Api
+@inject NavigationManager Nav
+
+<PageTitle>Edit Product</PageTitle>
+
+<h2>Edit Product</h2>
+
+@if (_loading)
+{
+    <p>Loading...</p>
+}
+else if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+    <a class="btn btn-secondary" href="/products">Back</a>
+}
+else
+{
+    <div class="col-md-5">
+        <EditForm Model="_product" OnValidSubmit="HandleSubmit">
+            <DataAnnotationsValidator />
+            <ValidationSummary />
+
+            <div class="mb-3">
+                <label class="form-label">Name</label>
+                <InputText class="form-control" @bind-Value="_product.Name" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Price</label>
+                <InputNumber class="form-control" @bind-Value="_product.Price" />
+            </div>
+
+            <div class="mb-3">
+                <label class="form-label">Description</label>
+                <InputTextArea class="form-control" rows="3" @bind-Value="_product.Description" />
+            </div>
+
+            @if (_saveError is not null)
+            {
+                <div class="alert alert-danger">@_saveError</div>
+            }
+
+            <button type="submit" class="btn btn-primary" disabled="@_saving">
+                @(_saving ? "Saving..." : "Save Changes")
+            </button>
+            <a class="btn btn-secondary ms-2" href="/products">Cancel</a>
+        </EditForm>
+    </div>
+}
+
+@code {
+    [Parameter] public int Id { get; set; }
+
+    private MyClient.Models.Product _product = new();
+    private bool _loading = true;
+    private bool _saving;
+    private string? _error;
+    private string? _saveError;
+
+    protected override async Task OnInitializedAsync()
+    {
+        try
+        {
+            var result = await Api.GetByIdAsync(Id);
+            if (result is null)
+                _error = $"Product #{Id} not found.";
+            else
+                _product = result;
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load product: {ex.Message}";
+        }
+        finally
+        {
+            _loading = false;
+        }
+    }
+
+    private async Task HandleSubmit()
+    {
+        _saving = true;
+        _saveError = null;
+        try
+        {
+            await Api.UpdateAsync(Id, _product);
+            Nav.NavigateTo("/products");
+        }
+        catch (Exception ex)
+        {
+            _saveError = $"Could not save changes: {ex.Message}";
+        }
+        finally
+        {
+            _saving = false;
+        }
+    }
+}

@@ -1,0 +1,224 @@
+@page "/orders"
+@inject OrderApiService OrderApi
+@inject ProductApiService ProductApi
+@inject NavigationManager Nav
+
+<PageTitle>Orders</PageTitle>
+
+<h2>Orders</h2>
+
+@if (_error is not null)
+{
+    <div class="alert alert-danger">@_error</div>
+}
+
+<!-- ── Create Order Form ──────────────────────────────────────────── -->
+<div class="card mb-4">
+    <div class="card-header fw-semibold">Place a New Order</div>
+    <div class="card-body">
+        <EditForm Model="_newOrder" OnValidSubmit="HandleCreate">
+            <DataAnnotationsValidator />
+            <div class="row g-3 align-items-end">
+                <div class="col-md-5">
+                    <label class="form-label">Product</label>
+                    @if (_products is null)
+                    {
+                        <p class="text-muted">Loading products...</p>
+                    }
+                    else
+                    {
+                        <InputSelect class="form-select" @bind-Value="_newOrder.ProductId">
+                            <option value="0">— select a product —</option>
+                            @foreach (var p in _products)
+                            {
+                                <option value="@p.Id">@p.Name (@p.Price.ToString("C"))</option>
+                            }
+                        </InputSelect>
+                    }
+                </div>
+                <div class="col-md-3">
+                    <label class="form-label">Quantity</label>
+                    <InputNumber class="form-control" @bind-Value="_newOrder.Quantity" min="1" />
+                </div>
+                <div class="col-md-auto">
+                    <button type="submit" class="btn btn-primary" disabled="@_creating">
+                        @(_creating ? "Placing..." : "Place Order")
+                    </button>
+                </div>
+            </div>
+            @if (_createError is not null)
+            {
+                <div class="alert alert-danger mt-2">@_createError</div>
+            }
+        </EditForm>
+    </div>
+</div>
+
+<!-- ── Orders Table ──────────────────────────────────────────────── -->
+@if (_loadingOrders)
+{
+    <p>Loading orders...</p>
+}
+else if (_orders is null || _orders.Count == 0)
+{
+    <p class="text-muted">No orders yet.</p>
+}
+else
+{
+    <table class="table table-striped table-hover">
+        <thead>
+            <tr>
+                <th>ID</th>
+                <th>Product ID</th>
+                <th>Quantity</th>
+                <th>Total Price</th>
+                <th>Ordered At</th>
+                <th></th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var o in _orders)
+            {
+                <tr>
+                    <td>@o.Id</td>
+                    <td>
+                        @if (_productMap.TryGetValue(o.ProductId, out var name))
+                        {
+                            <span>@name</span>
+                        }
+                        else
+                        {
+                            <span class="text-muted">#@o.ProductId</span>
+                        }
+                    </td>
+                    <td>@o.Quantity</td>
+                    <td>@o.TotalPrice.ToString("C")</td>
+                    <td>@o.OrderedAt.ToLocalTime().ToString("g")</td>
+                    <td>
+                        <button class="btn btn-sm btn-outline-danger"
+                                @onclick="() => ConfirmDelete(o.Id)">Delete</button>
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+
+<!-- ── Delete Confirm Modal ──────────────────────────────────────── -->
+@if (_deleteId is not null)
+{
+    <div class="modal d-block" style="background:rgba(0,0,0,0.4)">
+        <div class="modal-dialog">
+            <div class="modal-content">
+                <div class="modal-header">
+                    <h5 class="modal-title">Confirm Delete</h5>
+                </div>
+                <div class="modal-body">
+                    Delete Order #<strong>@_deleteId</strong>? This cannot be undone.
+                </div>
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" @onclick="CancelDelete">Cancel</button>
+                    <button class="btn btn-danger" @onclick="ExecuteDelete">Delete</button>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    // ── State ──────────────────────────────────────────────────────
+    private List<Order>? _orders;
+    private List<Product>? _products;
+    private Dictionary<int, string> _productMap = new();
+
+    private bool _loadingOrders = true;
+    private bool _creating;
+    private string? _error;
+    private string? _createError;
+    private int? _deleteId;
+
+    // Bound to the create form
+    private CreateOrderModel _newOrder = new();
+
+    private class CreateOrderModel
+    {
+        public int ProductId { get; set; }
+        public int Quantity { get; set; } = 1;
+    }
+
+    // ── Lifecycle ──────────────────────────────────────────────────
+    protected override async Task OnInitializedAsync()
+    {
+        // Load products and orders in parallel
+        var productTask = ProductApi.GetAllAsync();
+        var orderTask   = LoadOrdersAsync();
+        await Task.WhenAll(productTask, orderTask);
+
+        _products = productTask.Result ?? [];
+        _productMap = _products.ToDictionary(p => p.Id, p => p.Name);
+    }
+
+    private async Task LoadOrdersAsync()
+    {
+        _loadingOrders = true;
+        _error = null;
+        try
+        {
+            _orders = await OrderApi.GetAllAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Failed to load orders: {ex.Message}";
+        }
+        finally
+        {
+            _loadingOrders = false;
+        }
+    }
+
+    // ── Create ─────────────────────────────────────────────────────
+    private async Task HandleCreate()
+    {
+        if (_newOrder.ProductId == 0)
+        {
+            _createError = "Please select a product.";
+            return;
+        }
+        _creating = true;
+        _createError = null;
+        try
+        {
+            await OrderApi.CreateAsync(_newOrder.ProductId, _newOrder.Quantity);
+            _newOrder = new CreateOrderModel();
+            await LoadOrdersAsync();
+        }
+        catch (Exception ex)
+        {
+            _createError = $"Could not place order: {ex.Message}";
+        }
+        finally
+        {
+            _creating = false;
+        }
+    }
+
+    // ── Delete ─────────────────────────────────────────────────────
+    private void ConfirmDelete(int id) => _deleteId = id;
+    private void CancelDelete() => _deleteId = null;
+
+    private async Task ExecuteDelete()
+    {
+        if (_deleteId is null) return;
+        try
+        {
+            await OrderApi.DeleteAsync(_deleteId.Value);
+            _deleteId = null;
+            await LoadOrdersAsync();
+        }
+        catch (Exception ex)
+        {
+            _error = $"Delete failed: {ex.Message}";
+            _deleteId = null;
+        }
+    }
+}

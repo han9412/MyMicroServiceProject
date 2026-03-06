@@ -1,0 +1,51 @@
+# ── Build output ────────────────────────────────────────────────────────────
+bin/
+obj/
+
+# ── Visual Studio ────────────────────────────────────────────────────────────
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# ── Rider ────────────────────────────────────────────────────────────────────
+.idea/
+*.sln.iml
+
+# ── VS Code ──────────────────────────────────────────────────────────────────
+.vscode/
+
+# ── .NET ─────────────────────────────────────────────────────────────────────
+*.swp
+*.*~
+project.lock.json
+.DS_Store
+*.pyc
+nupkg/
+
+# NuGet packages — restored on build, never committed
+packages/
+*.nupkg
+
+# ── Docker ───────────────────────────────────────────────────────────────────
+# Keep Dockerfiles and docker-compose.yml but ignore local override files
+docker-compose.override.yml
+docker-compose.*.local.yml
+
+# ── Secrets / environment ─────────────────────────────────────────────────────
+# Never commit real secrets — use environment variables or Docker secrets
+.env
+.env.*
+!.env.example
+**/appsettings.Local.json
+**/appsettings.*.Local.json
+
+# ── Logs ─────────────────────────────────────────────────────────────────────
+*.log
+logs/
+
+# ── OS ───────────────────────────────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini

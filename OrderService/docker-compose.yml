@@ -1,0 +1,39 @@
+services:
+  mssql-order-db:
+    image: mcr.microsoft.com/mssql/server:2022-latest
+    container_name: mssql-order-db
+    environment:
+      ACCEPT_EULA: "Y"
+      SA_PASSWORD: "P@ssw0rd"
+      MSSQL_PID: "Developer"
+    ports:
+      - "1434:1433"   # Different host port (1434) so it doesn't clash with ProductService's DB (1433)
+    volumes:
+      - mssqlorderdata:/var/opt/mssql
+    healthcheck:
+      test: ["CMD", "/opt/mssql-tools18/bin/sqlcmd", "-S", "localhost", "-U", "sa", "-P", "P@ssw0rd", "-Q", "SELECT 1", "-C"]
+      interval: 10s
+      retries: 10
+      start_period: 30s
+
+  orderservice:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: orderservice
+    ports:
+      - "5044:8080"   # Host port 5044 → container port 8080
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Server=mssql-order-db,1433;Database=OrderDb;User Id=sa;Password=P@ssw0rd;TrustServerCertificate=True;
+      # To reach ProductService container from this container use host.docker.internal
+      # (works on Linux with --add-host, see note below). For local dev, keep http://localhost:5043.
+      - ProductServiceUrl=http://host.docker.internal:5043
+    extra_hosts:
+      - "host.docker.internal:host-gateway"   # Linux: allows container → host network
+    depends_on:
+      mssql-order-db:
+        condition: service_healthy
+
+volumes:
+  mssqlorderdata:
