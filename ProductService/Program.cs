@@ -1,7 +1,10 @@
 
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using MyMicroServiceProject.Data;
 using MyMicroServiceProject.Models;
+using ProductService.Consumers;
+using ProductService.Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -15,6 +18,33 @@ builder.Services.AddDbContext<AppDbContext>(options =>
             errorNumbersToAdd: null
         )
     ));
+
+// ── MassTransit + RabbitMQ ───────────────────────────────────────────────────
+// ProductService: consumes OrderPlaced → decrements stock
+//                 publishes StockDepleted → notifies OrderService
+var rabbitMqHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
+
+builder.Services.AddMassTransit(x =>
+{
+    // Register the consumer that will handle incoming OrderPlaced events
+    x.AddConsumer<OrderPlacedConsumer>();
+
+    x.UsingRabbitMq((ctx, cfg) =>
+    {
+        cfg.Host(rabbitMqHost, "/", h =>
+        {
+            h.Username("guest");
+            h.Password("guest");
+        });
+
+        // Bind to shared exchange names so namespace differences don't matter
+        cfg.Message<OrderPlaced>(x => x.SetEntityName("order-placed"));
+        cfg.Message<StockDepleted>(x => x.SetEntityName("stock-depleted"));
+
+        // Wire up the consumer to its queue
+        cfg.ConfigureEndpoints(ctx);
+    });
+});
 
 // OpenAPI (Swagger)
 builder.Services.AddOpenApi();
@@ -63,6 +93,7 @@ app.MapPut("/products/{id}", async (int id, Product updated, AppDbContext db) =>
     product.Name        = updated.Name;
     product.Price       = updated.Price;
     product.Description = updated.Description;
+    product.Stock       = updated.Stock;
 
     await db.SaveChangesAsync();
     return Results.Ok(product);

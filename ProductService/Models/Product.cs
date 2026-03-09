@@ -13,4 +13,7 @@ public class Product
     public decimal Price { get; set; }
 
     public string Description { get; set; } = null!;
+
+    /// <summary>Available units in stock. Decremented when an order is placed.</summary>
+    public int Stock { get; set; } = 0;
 }

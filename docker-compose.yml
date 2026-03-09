@@ -4,6 +4,7 @@
 # What this runs:
 #   mssql-product-db  → SQL Server for ProductService  (host port 1433)
 #   mssql-order-db    → SQL Server for OrderService    (host port 1434)
+#   rabbitmq          → RabbitMQ message broker        (AMQP 5672, UI 15672)
 #   productservice    → ProductService Web API         (host port 5043)
 #   orderservice      → OrderService Web API           (host port 5044)
 #   myclient          → Blazor WASM via nginx          (host port 5200)
@@ -56,6 +57,25 @@ services:
       retries: 10
       start_period: 30s
 
+  # ── Message Broker ────────────────────────────────────────────────────────
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    container_name: rabbitmq
+    ports:
+      - "5672:5672"    # AMQP protocol port (used by services)
+      - "15672:15672"  # RabbitMQ management UI → http://localhost:15672
+    environment:
+      RABBITMQ_DEFAULT_USER: guest
+      RABBITMQ_DEFAULT_PASS: guest
+    networks:
+      - microservices-net
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "ping"]
+      interval: 10s
+      retries: 10
+      start_period: 30s
+
   # ── API Services ───────────────────────────────────────────────────────────
 
   productservice:
@@ -68,10 +88,13 @@ services:
     environment:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=mssql-product-db,1433;Database=MyDbName;User Id=sa;Password=P@ssw0rd;TrustServerCertificate=True;
+      - RabbitMQ__Host=rabbitmq
     networks:
       - microservices-net
     depends_on:
       mssql-product-db:
+        condition: service_healthy
+      rabbitmq:
         condition: service_healthy
 
   orderservice:
@@ -86,6 +109,7 @@ services:
       - ConnectionStrings__DefaultConnection=Server=mssql-order-db,1433;Database=OrderDb;User Id=sa;Password=P@ssw0rd;TrustServerCertificate=True;
       # Service-to-service: OrderService calls ProductService by Docker container name, not localhost
       - ProductServiceUrl=http://productservice:8080
+      - RabbitMQ__Host=rabbitmq
     networks:
       - microservices-net
     depends_on:
@@ -93,6 +117,8 @@ services:
         condition: service_healthy
       productservice:
         condition: service_started
+      rabbitmq:
+        condition: service_healthy
 
   # ── Client ─────────────────────────────────────────────────────────────────
 

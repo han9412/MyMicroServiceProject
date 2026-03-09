@@ -28,6 +28,7 @@ else
                 <th>Name</th>
                 <th>Price</th>
                 <th>Description</th>
+                <th>Stock</th>
                 <th></th>
             </tr>
         </thead>
@@ -39,6 +40,7 @@ else
                     <td>@p.Name</td>
                     <td>@p.Price.ToString("C")</td>
                     <td>@p.Description</td>
+                    <td>@p.Stock</td>
                     <td>
                         <a class="btn btn-sm btn-outline-secondary me-1" href="/products/edit/@p.Id">Edit</a>
                         <button class="btn btn-sm btn-outline-danger" @onclick="() => ConfirmDelete(p.Id, p.Name)">Delete</button>
