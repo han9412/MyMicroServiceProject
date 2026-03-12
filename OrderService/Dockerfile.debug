@@ -1,0 +1,26 @@
+# Stage 1: Build (Debug configuration — keeps PDB symbols for the debugger)
+FROM mcr.microsoft.com/dotnet/sdk:10.0 AS build
+WORKDIR /src
+
+RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
+
+COPY NuGet.Config .
+COPY *.csproj .
+RUN dotnet restore
+
+COPY . .
+RUN dotnet publish -c Debug -o /app
+
+# Stage 2: Runtime with vsdbg installed
+FROM mcr.microsoft.com/dotnet/aspnet:10.0
+WORKDIR /app
+
+# Install vsdbg BEFORE copying app files so this layer is cached independently.
+# Subsequent code-only rebuilds will reuse this cached layer and skip the download.
+RUN apt-get update && apt-get install -y curl unzip \
+    && curl -sSL https://aka.ms/getvsdbgsh | bash /dev/stdin -v latest -l /vsdbg \
+    && apt-get clean && rm -rf /var/lib/apt/lists/*
+
+COPY --from=build /app .
+
+ENTRYPOINT ["dotnet", "OrderService.dll"]

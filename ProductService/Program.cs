@@ -23,6 +23,8 @@ builder.Services.AddDbContext<AppDbContext>(options =>
 // ProductService: consumes OrderPlaced → decrements stock
 //                 publishes StockDepleted → notifies OrderService
 var rabbitMqHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
+var rabbitMqUsername = builder.Configuration["RabbitMQ:Username"] ?? "guest";
+var rabbitMqPassword = builder.Configuration["RabbitMQ:Password"] ?? "guest";
 
 builder.Services.AddMassTransit(x =>
 {
@@ -33,8 +35,8 @@ builder.Services.AddMassTransit(x =>
     {
         cfg.Host(rabbitMqHost, "/", h =>
         {
-            h.Username("guest");
-            h.Password("guest");
+            h.Username(rabbitMqUsername);
+            h.Password(rabbitMqPassword);
         });
 
         // Bind to shared exchange names so namespace differences don't matter

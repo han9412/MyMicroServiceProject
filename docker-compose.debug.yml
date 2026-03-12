@@ -9,3 +9,7 @@ services:
     build:
       context: ./ProductService
       dockerfile: Dockerfile.debug
+  orderservice:
+    build:
+      context: ./OrderService
+      dockerfile: Dockerfile.debug

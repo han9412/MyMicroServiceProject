@@ -89,6 +89,8 @@ services:
       - ASPNETCORE_ENVIRONMENT=Development
       - ConnectionStrings__DefaultConnection=Server=mssql-product-db,1433;Database=MyDbName;User Id=sa;Password=P@ssw0rd;TrustServerCertificate=True;
       - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
     networks:
       - microservices-net
     depends_on:
@@ -110,6 +112,8 @@ services:
       # Service-to-service: OrderService calls ProductService by Docker container name, not localhost
       - ProductServiceUrl=http://productservice:8080
       - RabbitMQ__Host=rabbitmq
+      - RabbitMQ__Username=guest
+      - RabbitMQ__Password=guest
     networks:
       - microservices-net
     depends_on:

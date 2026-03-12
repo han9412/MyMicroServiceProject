@@ -37,6 +37,8 @@ builder.Services.AddSingleton<DepletedProductsTracker>();
 // OrderService: publishes OrderPlaced → notifies ProductService
 //               consumes StockDepleted → blocks orders for depleted products
 var rabbitMqHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
+var rabbitMqUsername = builder.Configuration["RabbitMQ:Username"] ?? "guest";
+var rabbitMqPassword = builder.Configuration["RabbitMQ:Password"] ?? "guest";
 
 builder.Services.AddMassTransit(x =>
 {
@@ -47,8 +49,8 @@ builder.Services.AddMassTransit(x =>
     {
         cfg.Host(rabbitMqHost, "/", h =>
         {
-            h.Username("guest");
-            h.Password("guest");
+            h.Username(rabbitMqUsername);
+            h.Password(rabbitMqPassword);
         });
 
         // Bind to shared exchange names so namespace differences don't matter
@@ -93,7 +95,7 @@ app.MapGet("/orders/{id}", async (int id, OrderDbContext db) =>
 // POST /orders  — body: { "productId": 1, "quantity": 3 }
 app.MapPost("/orders", async (CreateOrderRequest req, OrderDbContext db, ProductServiceClient productClient, IPublishEndpoint publishEndpoint, DepletedProductsTracker depletedTracker) =>
 {
-
+    
     // Call ProductService to validate the product exists and get its current price
     var product = await productClient.GetProductAsync(req.ProductId);
     if (product is null)
