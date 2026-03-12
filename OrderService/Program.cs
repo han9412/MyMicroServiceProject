@@ -93,19 +93,20 @@ app.MapGet("/orders/{id}", async (int id, OrderDbContext db) =>
 // POST /orders  — body: { "productId": 1, "quantity": 3 }
 app.MapPost("/orders", async (CreateOrderRequest req, OrderDbContext db, ProductServiceClient productClient, IPublishEndpoint publishEndpoint, DepletedProductsTracker depletedTracker) =>
 {
-    // Reject immediately if we already know this product is out of stock
-    if (depletedTracker.IsDepleted(req.ProductId))
-        return Results.BadRequest($"Product {req.ProductId} is out of stock and cannot be ordered.");
 
     // Call ProductService to validate the product exists and get its current price
     var product = await productClient.GetProductAsync(req.ProductId);
     if (product is null)
         return Results.BadRequest($"Product with ID {req.ProductId} does not exist in ProductService.");
 
+    // Reject immediately if we already know this product is out of stock
+    if (depletedTracker.IsDepleted(req.ProductId))
+        return Results.BadRequest($"Product {product.Name} is out of stock and cannot be ordered.");
+
     // Synchronous stock check — covers startup/restart scenarios where the
     // StockDepleted event may not have been received yet
     if (product.Stock <= 0)
-        return Results.BadRequest($"Product {req.ProductId} is out of stock.");
+        return Results.BadRequest($"Product {product.Name} is out of stock.");
 
     if (req.Quantity <= 0)
         return Results.BadRequest("Quantity must be greater than zero.");
