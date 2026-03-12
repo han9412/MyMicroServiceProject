@@ -121,6 +121,74 @@ To also remove the persistent database volumes:
 sudo docker compose down -v
 ```
 
+## Debugging with Docker
+
+The repository includes `docker-compose.debug.yml`, a Compose override that builds `ProductService` and `OrderService` with their `Dockerfile.debug` files instead of the production `Dockerfile`.
+
+**What `Dockerfile.debug` does differently:**
+- Compiles in `Debug` configuration (preserves PDB symbol files).
+- Installs `vsdbg` (the VS Code / Visual Studio remote debugger) at `/vsdbg` inside the container.
+
+### Start the stack in debug mode
+
+```bash
+sudo docker compose -f docker-compose.yml -f docker-compose.debug.yml up --build
+```
+
+### Attach a debugger (VS Code)
+
+1. Install the [C# Dev Kit](https://marketplace.visualstudio.com/items?itemName=ms-dotnettools.csdevkit) extension.
+2. Create `.vscode/launch.json` with an entry for each service you want to attach to:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach: ProductService (Docker)",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickProcess}",
+      "pipeTransport": {
+        "pipeProgram": "docker",
+        "pipeArgs": ["exec", "-i", "productservice"],
+        "debuggerPath": "/vsdbg/vsdbg",
+        "pipeCwd": "${workspaceFolder}"
+      },
+      "sourceFileMap": {
+        "/src": "${workspaceFolder}/ProductService"
+      }
+    },
+    {
+      "name": "Attach: OrderService (Docker)",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickProcess}",
+      "pipeTransport": {
+        "pipeProgram": "docker",
+        "pipeArgs": ["exec", "-i", "orderservice"],
+        "debuggerPath": "/vsdbg/vsdbg",
+        "pipeCwd": "${workspaceFolder}"
+      },
+      "sourceFileMap": {
+        "/src": "${workspaceFolder}/OrderService"
+      }
+    }
+  ]
+}
+```
+
+3. Open the **Run and Debug** panel (`Ctrl+Shift+D`), select the desired configuration, and press **F5**.
+4. When prompted by `pickProcess`, choose the `dotnet` process running the service DLL.
+
+### Stop the debug stack
+
+```bash
+sudo docker compose -f docker-compose.yml -f docker-compose.debug.yml down
+```
+
+> **Tip:** The `vsdbg` installation is in its own Docker layer. After the images are built once, subsequent rebuilds that only change application code will reuse the cached `vsdbg` layer and be significantly faster.
+
 ## Project Structure
 
 ```
