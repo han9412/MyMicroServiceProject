@@ -1,7 +1,7 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using OrderService.Consumers;
-using OrderService.Contracts;
+using Contracts;
 using OrderService.Data;
 using OrderService.Models;
 using OrderService.Services;
@@ -52,10 +52,6 @@ builder.Services.AddMassTransit(x =>
             h.Username(rabbitMqUsername);
             h.Password(rabbitMqPassword);
         });
-
-        // Bind to shared exchange names so namespace differences don't matter
-        cfg.Message<OrderPlaced>(x => x.SetEntityName("order-placed"));
-        cfg.Message<StockDepleted>(x => x.SetEntityName("stock-depleted"));
 
         // Wire up the consumer to its queue
         cfg.ConfigureEndpoints(ctx);
@@ -125,7 +121,7 @@ app.MapPost("/orders", async (CreateOrderRequest req, OrderDbContext db, Product
     await db.SaveChangesAsync();
 
     // Publish event to RabbitMQ — ProductService will consume this and decrement stock
-    await publishEndpoint.Publish(new OrderService.Contracts.OrderPlaced
+    await publishEndpoint.Publish(new OrderPlacedEvent
     {
         OrderId   = order.Id,
         ProductId = order.ProductId,

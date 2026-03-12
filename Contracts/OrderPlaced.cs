@@ -1,13 +1,12 @@
 using MassTransit;
 
-namespace ProductService.Contracts;
+namespace Contracts;
 
 /// <summary>
 /// Published by OrderService after a new order is successfully saved.
 /// ProductService subscribes to this to decrement stock.
 /// </summary>
-[MessageUrn("order-placed")]
-public class OrderPlaced
+public class OrderPlacedEvent
 {
     public int OrderId { get; set; }
     public int ProductId { get; set; }

@@ -1,5 +1,5 @@
 using MassTransit;
-using OrderService.Contracts;
+using Contracts;
 using OrderService.Services;
 
 namespace OrderService.Consumers;
@@ -8,9 +8,9 @@ namespace OrderService.Consumers;
 /// Triggered whenever ProductService publishes a StockDepleted event.
 /// Responsibility: record the product ID so POST /orders can reject new orders for it.
 /// </summary>
-public class StockDepletedConsumer(DepletedProductsTracker tracker) : IConsumer<StockDepleted>
+public class StockDepletedConsumer(DepletedProductsTracker tracker) : IConsumer<StockDepletedEvent>
 {
-    public Task Consume(ConsumeContext<StockDepleted> context)
+    public Task Consume(ConsumeContext<StockDepletedEvent> context)
     {
         tracker.MarkDepleted(context.Message.ProductId);
         return Task.CompletedTask;
