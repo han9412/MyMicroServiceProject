@@ -1,4 +1,3 @@
-using MassTransit;
 
 namespace Contracts;
 

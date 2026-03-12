@@ -49,12 +49,12 @@ Asynchronous communication between the services is handled by **RabbitMQ** as th
 
 ### Message contracts
 
-Both contracts live in each service's `Contracts/` folder and are decorated with `[MessageUrn]` so MassTransit uses a stable, version-independent routing key.
+Both contracts live in the shared **`Contracts`** class library (`Contracts/`) and are referenced by both services.
 
-| Contract | Namespace / URN | Fields |
+| Contract | URN | Fields |
 |---|---|---|
-| `OrderPlaced` | `order-placed` | `OrderId`, `ProductId`, `Quantity` |
-| `StockDepleted` | `stock-depleted` | `ProductId`, `ProductName` |
+| `OrderPlacedEvent` | `order-placed` | `OrderId`, `ProductId`, `Quantity` |
+| `StockDepletedEvent` | `stock-depleted` | `ProductId`, `ProductName` |
 
 ### Event flow
 
@@ -80,8 +80,8 @@ StockDepletedConsumer                  │                               │
 
 | Service | Publishes | Consumes |
 |---|---|---|
-| **OrderService** | `OrderPlaced` — after a new order is saved | `StockDepleted` — via `StockDepletedConsumer` |
-| **ProductService** | `StockDepleted` — when a product's stock reaches zero | `OrderPlaced` — via `OrderPlacedConsumer` |
+| **OrderService** | `OrderPlacedEvent` — after a new order is saved | `StockDepletedEvent` — via `StockDepletedConsumer` |
+| **ProductService** | `StockDepletedEvent` — when a product's stock reaches zero | `OrderPlacedEvent` — via `OrderPlacedConsumer` |
 
 ### RabbitMQ Management UI
 
