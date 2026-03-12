@@ -37,6 +37,11 @@ else
                 <InputTextArea class="form-control" rows="3" @bind-Value="_product.Description" />
             </div>
 
+            <div class="mb-3">
+                <label class="form-label">Stock</label>
+                <InputNumber class="form-control" @bind-Value="_product.Stock" />
+            </div>
+
             @if (_saveError is not null)
             {
                 <div class="alert alert-danger">@_saveError</div>

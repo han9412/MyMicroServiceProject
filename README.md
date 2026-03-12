@@ -29,6 +29,7 @@ All containers share a single Docker bridge network (`microservices-net`).
 | **MyClient** | Blazor WebAssembly + nginx | `5200` | Single-page front-end |
 | **mssql-product-db** | SQL Server 2022 | `1433` | Dedicated DB for ProductService |
 | **mssql-order-db** | SQL Server 2022 | `1434` | Dedicated DB for OrderService |
+| **rabbitmq** | RabbitMQ 3 + Management UI | `5672` / `15672` | Message broker for async events between services |
 
 ## Tech Stack
 
@@ -38,7 +39,53 @@ All containers share a single Docker bridge network (`microservices-net`).
 - **Entity Framework Core 10** with SQL Server provider
 - **SQL Server 2022** (Docker image `mcr.microsoft.com/mssql/server:2022-latest`)
 - **nginx** — serves the compiled Blazor WASM static files
+- **RabbitMQ 3** — message broker (AMQP)
+- **MassTransit** — messaging abstraction over RabbitMQ (publish/consume, automatic topology)
 - **Docker & Docker Compose** — single-command local setup
+
+## Messaging (RabbitMQ & MassTransit)
+
+Asynchronous communication between the services is handled by **RabbitMQ** as the message broker and **MassTransit** as the .NET messaging library. 
+
+### Message contracts
+
+Both contracts live in each service's `Contracts/` folder and are decorated with `[MessageUrn]` so MassTransit uses a stable, version-independent routing key.
+
+| Contract | Namespace / URN | Fields |
+|---|---|---|
+| `OrderPlaced` | `order-placed` | `OrderId`, `ProductId`, `Quantity` |
+| `StockDepleted` | `stock-depleted` | `ProductId`, `ProductName` |
+
+### Event flow
+
+```
+OrderService                        RabbitMQ                      ProductService
+    │                                  │                               │
+    │  POST /orders (success)           │                               │
+    │──Publish(OrderPlaced)────────────►│                               │
+    │                                  │──OrderPlaced event────────────►│
+    │                                  │                  OrderPlacedConsumer
+    │                                  │                  • decrements product.Stock
+    │                                  │                  • if Stock == 0 →
+    │                                  │◄──Publish(StockDepleted)───────│
+    │◄──StockDepleted event────────────│                               │
+StockDepletedConsumer                  │                               │
+• marks productId in                   │                               │
+  DepletedProductsTracker              │                               │
+• POST /orders for that product        │                               │
+  now returns 409 Conflict             │                               │
+```
+
+### Publishers & consumers
+
+| Service | Publishes | Consumes |
+|---|---|---|
+| **OrderService** | `OrderPlaced` — after a new order is saved | `StockDepleted` — via `StockDepletedConsumer` |
+| **ProductService** | `StockDepleted` — when a product's stock reaches zero | `OrderPlaced` — via `OrderPlacedConsumer` |
+
+### RabbitMQ Management UI
+
+While the stack is running, open **http://localhost:15672** (credentials: `guest` / `guest`) to inspect exchanges, queues, and message rates in real time.
 
 ## API Endpoints
 
@@ -120,6 +167,74 @@ To also remove the persistent database volumes:
 ```bash
 sudo docker compose down -v
 ```
+
+## Debugging with Docker
+
+The repository includes `docker-compose.debug.yml`, a Compose override that builds `ProductService` and `OrderService` with their `Dockerfile.debug` files instead of the production `Dockerfile`.
+
+**What `Dockerfile.debug` does differently:**
+- Compiles in `Debug` configuration (preserves PDB symbol files).
+- Installs `vsdbg` (the VS Code / Visual Studio remote debugger) at `/vsdbg` inside the container.
+
+### Start the stack in debug mode
+
+```bash
+sudo docker compose -f docker-compose.yml -f docker-compose.debug.yml up --build
+```
+
+### Attach a debugger (VS Code)
+
+1. Install the [C# Dev Kit](https://marketplace.visualstudio.com/items?itemName=ms-dotnettools.csdevkit) extension.
+2. Create `.vscode/launch.json` with an entry for each service you want to attach to:
+
+```json
+{
+  "version": "0.2.0",
+  "configurations": [
+    {
+      "name": "Attach: ProductService (Docker)",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickProcess}",
+      "pipeTransport": {
+        "pipeProgram": "docker",
+        "pipeArgs": ["exec", "-i", "productservice"],
+        "debuggerPath": "/vsdbg/vsdbg",
+        "pipeCwd": "${workspaceFolder}"
+      },
+      "sourceFileMap": {
+        "/src": "${workspaceFolder}/ProductService"
+      }
+    },
+    {
+      "name": "Attach: OrderService (Docker)",
+      "type": "coreclr",
+      "request": "attach",
+      "processId": "${command:pickProcess}",
+      "pipeTransport": {
+        "pipeProgram": "docker",
+        "pipeArgs": ["exec", "-i", "orderservice"],
+        "debuggerPath": "/vsdbg/vsdbg",
+        "pipeCwd": "${workspaceFolder}"
+      },
+      "sourceFileMap": {
+        "/src": "${workspaceFolder}/OrderService"
+      }
+    }
+  ]
+}
+```
+
+3. Open the **Run and Debug** panel (`Ctrl+Shift+D`), select the desired configuration, and press **F5**.
+4. When prompted by `pickProcess`, choose the `dotnet` process running the service DLL.
+
+### Stop the debug stack
+
+```bash
+sudo docker compose -f docker-compose.yml -f docker-compose.debug.yml down
+```
+
+> **Tip:** The `vsdbg` installation is in its own Docker layer. After the images are built once, subsequent rebuilds that only change application code will reuse the cached `vsdbg` layer and be significantly faster.
 
 ## Project Structure
 

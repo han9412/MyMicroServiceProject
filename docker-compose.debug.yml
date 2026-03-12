@@ -1,0 +1,15 @@
+# Debug override — use together with the root docker-compose.yml:
+#   docker compose -f docker-compose.yml -f docker-compose.debug.yml up --build
+#
+# This replaces only the productservice build so it uses Dockerfile.debug,
+# which compiles in Debug mode and ships vsdbg for VS Code attach.
+
+services:
+  productservice:
+    build:
+      context: ./ProductService
+      dockerfile: Dockerfile.debug
+  orderservice:
+    build:
+      context: ./OrderService
+      dockerfile: Dockerfile.debug

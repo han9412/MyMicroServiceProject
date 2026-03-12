@@ -1,4 +1,7 @@
+using MassTransit;
 using Microsoft.EntityFrameworkCore;
+using OrderService.Consumers;
+using OrderService.Contracts;
 using OrderService.Data;
 using OrderService.Models;
 using OrderService.Services;
@@ -24,6 +27,39 @@ var productServiceUrl = builder.Configuration["ProductServiceUrl"]
 builder.Services.AddHttpClient<ProductServiceClient>(client =>
 {
     client.BaseAddress = new Uri(productServiceUrl);
+});
+
+// ── Depleted products tracker ───────────────────────────────────────────────────
+// Singleton in-memory set — populated by StockDepletedConsumer when an event arrives
+builder.Services.AddSingleton<DepletedProductsTracker>();
+
+// ── MassTransit + RabbitMQ ───────────────────────────────────────────────────
+// OrderService: publishes OrderPlaced → notifies ProductService
+//               consumes StockDepleted → blocks orders for depleted products
+var rabbitMqHost = builder.Configuration["RabbitMQ:Host"] ?? "localhost";
+var rabbitMqUsername = builder.Configuration["RabbitMQ:Username"] ?? "guest";
+var rabbitMqPassword = builder.Configuration["RabbitMQ:Password"] ?? "guest";
+
+builder.Services.AddMassTransit(x =>
+{
+    // Register the consumer that will handle incoming StockDepleted events
+    x.AddConsumer<StockDepletedConsumer>();
+
+    x.UsingRabbitMq((ctx, cfg) =>
+    {
+        cfg.Host(rabbitMqHost, "/", h =>
+        {
+            h.Username(rabbitMqUsername);
+            h.Password(rabbitMqPassword);
+        });
+
+        // Bind to shared exchange names so namespace differences don't matter
+        cfg.Message<OrderPlaced>(x => x.SetEntityName("order-placed"));
+        cfg.Message<StockDepleted>(x => x.SetEntityName("stock-depleted"));
+
+        // Wire up the consumer to its queue
+        cfg.ConfigureEndpoints(ctx);
+    });
 });
 
 // ── Swagger / OpenAPI ─────────────────────────────────────────────────────────
@@ -57,12 +93,22 @@ app.MapGet("/orders/{id}", async (int id, OrderDbContext db) =>
         is Order order ? Results.Ok(order) : Results.NotFound());
 
 // POST /orders  — body: { "productId": 1, "quantity": 3 }
-app.MapPost("/orders", async (CreateOrderRequest req, OrderDbContext db, ProductServiceClient productClient) =>
+app.MapPost("/orders", async (CreateOrderRequest req, OrderDbContext db, ProductServiceClient productClient, IPublishEndpoint publishEndpoint, DepletedProductsTracker depletedTracker) =>
 {
+    
     // Call ProductService to validate the product exists and get its current price
     var product = await productClient.GetProductAsync(req.ProductId);
     if (product is null)
         return Results.BadRequest($"Product with ID {req.ProductId} does not exist in ProductService.");
+
+    // Reject immediately if we already know this product is out of stock
+    if (depletedTracker.IsDepleted(req.ProductId))
+        return Results.BadRequest($"Product {product.Name} is out of stock and cannot be ordered.");
+
+    // Synchronous stock check — covers startup/restart scenarios where the
+    // StockDepleted event may not have been received yet
+    if (product.Stock <= 0)
+        return Results.BadRequest($"Product {product.Name} is out of stock.");
 
     if (req.Quantity <= 0)
         return Results.BadRequest("Quantity must be greater than zero.");
@@ -77,6 +123,15 @@ app.MapPost("/orders", async (CreateOrderRequest req, OrderDbContext db, Product
 
     db.Orders.Add(order);
     await db.SaveChangesAsync();
+
+    // Publish event to RabbitMQ — ProductService will consume this and decrement stock
+    await publishEndpoint.Publish(new OrderService.Contracts.OrderPlaced
+    {
+        OrderId   = order.Id,
+        ProductId = order.ProductId,
+        Quantity  = order.Quantity
+    });
+
     return Results.Created($"/orders/{order.Id}", order);
 });
 

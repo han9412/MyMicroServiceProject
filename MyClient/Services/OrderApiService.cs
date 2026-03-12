@@ -20,7 +20,11 @@ public class OrderApiService(HttpClient http)
     public async Task<Order?> CreateAsync(int productId, int quantity)
     {
         var response = await http.PostAsJsonAsync("orders", new { productId, quantity });
-        response.EnsureSuccessStatusCode();
+        if (!response.IsSuccessStatusCode)
+        {
+            var error = await response.Content.ReadAsStringAsync();
+            throw new HttpRequestException(string.IsNullOrWhiteSpace(error) ? response.ReasonPhrase : error);
+        }
         return await response.Content.ReadFromJsonAsync<Order>();
     }
 
