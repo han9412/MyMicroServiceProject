@@ -4,7 +4,7 @@ using Microsoft.EntityFrameworkCore;
 using MyMicroServiceProject.Data;
 using MyMicroServiceProject.Models;
 using ProductService.Consumers;
-using ProductService.Contracts;
+using Contracts;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -38,10 +38,6 @@ builder.Services.AddMassTransit(x =>
             h.Username(rabbitMqUsername);
             h.Password(rabbitMqPassword);
         });
-
-        // Bind to shared exchange names so namespace differences don't matter
-        cfg.Message<OrderPlaced>(x => x.SetEntityName("order-placed"));
-        cfg.Message<StockDepleted>(x => x.SetEntityName("stock-depleted"));
 
         // Wire up the consumer to its queue
         cfg.ConfigureEndpoints(ctx);

@@ -80,8 +80,8 @@ services:
 
   productservice:
     build:
-      context: ./ProductService
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: ProductService/Dockerfile
     container_name: productservice
     ports:
       - "5043:8080"
@@ -101,8 +101,8 @@ services:
 
   orderservice:
     build:
-      context: ./OrderService
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: OrderService/Dockerfile
     container_name: orderservice
     ports:
       - "5044:8080"

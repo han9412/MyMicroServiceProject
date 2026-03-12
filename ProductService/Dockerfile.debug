@@ -4,12 +4,19 @@ WORKDIR /src
 
 RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
 
-COPY NuGet.Config .
-COPY *.csproj .
-RUN dotnet restore
+# Copy shared Contracts library
+COPY Contracts/NuGet.Config Contracts/
+COPY Contracts/Contracts.csproj Contracts/
 
-COPY . .
-RUN dotnet publish -c Debug -o /app
+# Copy ProductService project file and restore
+COPY ProductService/NuGet.Config ProductService/
+COPY ProductService/ProductService.csproj ProductService/
+RUN dotnet restore ProductService/ProductService.csproj
+
+# Copy all source and publish
+COPY Contracts/ Contracts/
+COPY ProductService/ ProductService/
+RUN dotnet publish ProductService/ProductService.csproj -c Debug -o /app
 
 # Stage 2: Runtime with vsdbg installed
 FROM mcr.microsoft.com/dotnet/aspnet:10.0

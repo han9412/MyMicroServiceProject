@@ -1,7 +1,7 @@
 using MassTransit;
 using Microsoft.EntityFrameworkCore;
 using MyMicroServiceProject.Data;
-using ProductService.Contracts;
+using Contracts;
 
 namespace ProductService.Consumers;
 
@@ -11,9 +11,9 @@ namespace ProductService.Consumers;
 /// then publish StockDepleted if stock reaches zero.
 /// </summary>
 public class OrderPlacedConsumer(AppDbContext db, IPublishEndpoint publishEndpoint)
-    : IConsumer<OrderPlaced>
+    : IConsumer<OrderPlacedEvent>
 {
-    public async Task Consume(ConsumeContext<OrderPlaced> context)
+    public async Task Consume(ConsumeContext<OrderPlacedEvent> context)
     {
         var msg = context.Message;
 
@@ -31,7 +31,7 @@ public class OrderPlacedConsumer(AppDbContext db, IPublishEndpoint publishEndpoi
         // If stock just hit zero, notify OrderService so it can block further orders
         if (product.Stock == 0)
         {
-            await publishEndpoint.Publish(new StockDepleted
+            await publishEndpoint.Publish(new StockDepletedEvent
             {
                 ProductId   = product.Id,
                 ProductName = product.Name

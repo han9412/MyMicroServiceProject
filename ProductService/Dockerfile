@@ -5,14 +5,19 @@ WORKDIR /src
 # Fix SSL certificate chain issues in restricted/corporate environments
 RUN apt-get update && apt-get install -y ca-certificates && update-ca-certificates
 
-# Copy csproj first for better layer caching — only re-restores when dependencies change
-COPY NuGet.Config .
-COPY *.csproj .
-RUN dotnet restore
+# Copy shared Contracts library
+COPY Contracts/NuGet.Config Contracts/
+COPY Contracts/Contracts.csproj Contracts/
 
-# Copy the rest and publish
-COPY . .
-RUN dotnet publish -c Release -o /app
+# Copy ProductService project file and restore
+COPY ProductService/NuGet.Config ProductService/
+COPY ProductService/ProductService.csproj ProductService/
+RUN dotnet restore ProductService/ProductService.csproj
+
+# Copy all source and publish
+COPY Contracts/ Contracts/
+COPY ProductService/ ProductService/
+RUN dotnet publish ProductService/ProductService.csproj -c Release -o /app
 
 # Stage 2: Run
 FROM mcr.microsoft.com/dotnet/aspnet:10.0
